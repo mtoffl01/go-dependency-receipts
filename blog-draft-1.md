@@ -95,7 +95,9 @@ But that's not what Go does; Go uses *Minimum Version Selection*: given the cons
 
 ## What surprised me most
 
-I can't believe there was ever a world without 
+Given everything I learned today, the fact that we can pull in third party code at all -- and with a single command -- seems like a modern miracle! Before package managers, you found a library, copied the source files manually, tracked the version yourself, and maintained that copy forever. `go get` seems obvious to us now, but it wasn't always.
+
+And at the same time, I'm shocked we still do this as casually as we do. We know about incidents like xz-utils and left-pad; we know that every dependency is code we ship, vouch for, and inherit the vulnerabilities of. And yet `go get` remains a one-liner most of us run without a second thought.
 
 ## What's next
 
