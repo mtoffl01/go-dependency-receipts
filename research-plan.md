@@ -123,6 +123,12 @@ You are a dd-trace-go maintainer. Audience members will ask: *"I use Datadog tra
 - Look at `init()` functions across the main library packages: `grep -rn "^func init()" --include="*.go" .` — how many are there, and what do the heavy ones do?
 - Look at package-level globals: `grep -rn "^var " --include="*.go" . | wc -l` — know the rough shape.
 
+**Real tradeoff example: [dd-trace-go#4803](https://github.com/DataDog/dd-trace-go/pull/4803)**
+
+You were a core reviewer on this PR. It adds OTel Go runtime metrics (`go.memory.used`, `go.goroutine.count`, `go.schedule.duration`, etc.) emitted from `ddtrace/tracer`. The central design question was: import the full OTel SDK into `ddtrace/tracer` (convenient for the feature, cascades as a transitive dep into every `contrib/` module), or import only the OTel **API** package (forces a small amount of manual SDK wiring for one metric, but keeps the SDK out of contrib's dep graph entirely).
+
+The PR chose API-only. That choice was made explicitly to protect `contrib/` users from an uninvited transitive dependency — the exact tension the talk is about. Use this as a concrete example: *here's a real PR where we sat in the review thread and made a deliberate call about what we were willing to put in a customer's binary.*
+
 **Prepare your honest answer**
 Write 3–5 bullet points you could say on stage:
 1. What dd-trace-go adds to a binary, and *why* (what functionality justifies it)
