@@ -1,6 +1,6 @@
 # What I thought I knew about Go modules
 
-*Post 1 of N. I'm preparing a GopherCon 2026 talk called "Receipts from the Go Linker — Auditing the Cost of Dependencies." This blog is the receipts on my own learning: what I knew, what I assumed, and where I learned.*
+*Post 1 of <I don't know how many yet>. I'm preparing a GopherCon 2026 talk called "Receipts from the Go Linker — Auditing the Cost of Dependencies." This blog is the receipts on my own learning: what I knew, what I assumed, and where I learned.*
 
 ---
 

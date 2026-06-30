@@ -2,134 +2,92 @@
 
 **Talk:** Receipts from the Go Linker — Auditing the Cost of Dependencies
 **Speaker:** Mikayla Toffler
-**Today:** 2026-05-07 — Talk in ~3 months → ~2026-08-07
-**Working assumption about you:** strong Go writer, library-maintainer instincts, lots of intuition about *impact* of bad dependency choices, but limited deliberate study of the dep-management *machinery* (modules, the toolchain, the linker, DCE).
+**Updated:** 2026-06-28 — Talk in ~6 weeks → 2026-08-07
+**Working assumption about you:** strong Go writer, library-maintainer instincts. Phase 1 complete. Cultural context (Go community podcasts, module history, origins of MVS) done on time off. Now entering the technical depth phase with 6 weeks left.
 
 This plan is paced for **accessible, intuition-first** learning — blog posts, talks, hands-on labs — not academic papers. The goal is to make you *fluent*, not *encyclopedic*. You should be able to answer audience questions confidently and demo tools without notes.
 
 ---
 
+## Status snapshot (as of 2026-06-28)
+
+| Phase | Status |
+|---|---|
+| Phase 0 — Frame the topic | ✓ done |
+| Phase 1 — Module fundamentals | ✓ done |
+| Phase 1b — Cultural context (podcasts, history, comparative pkg managers) | ✓ done (time off) |
+| Phase 2 — Toolchain mental model | → **current** |
+| Phase 3 — Linker & DCE | not started |
+| Phase 4 — Hands-on lab & demo | not started |
+| Datadog prep | not started |
+| Capstone tool | not started |
+| Blog posts 2–6 | not started |
+
+**Critical path:** Capstone tool must be live before talk day. Build it during Phase 4 — the implementation will reinforce what you're learning.
+
+---
+
 ## Blog series arc
 
-The posts are a paper trail of this learning journey, written from the voice of a library maintainer who realized she didn't fully understand the machinery she ships inside other people's binaries. Not a purist, not an importer — someone further along the path who discovered a gap.
+| Post | Working title | Status |
+|---|---|---|
+| 1 | What I thought I knew about Go modules | drafted |
+| 1b | Go's dependency machinery is scar tissue | drafted |
+| 2 | The Handoff: from compiler to linker | drafted |
+| 3 | The linker, dead code elimination, and why `init()` is a landmine | not started |
+| 4 | Auditing a real binary: receipts | not started |
+| 5 | The attack surface you didn't know you imported | not started |
+| 6 (capstone) | I built the tool: AI-assisted dependency vetting | not started |
 
-Each post maps roughly to a phase. The arc across the series: *from vocabulary-without-mechanics → measurement-driven practice*.
-
-| Post | Phase | Working title | Status |
-|---|---|---|---|
-| 1 | 0–1 | What I thought I knew about Go modules | drafted |
-| 2 | 2 | What `go build` actually does | not started |
-| 3 | 3 | The linker, dead code elimination, and why `init()` is a landmine | not started |
-| 4 | 4 | Auditing a real binary: receipts | not started |
-| 5 | 5 + security | The attack surface you didn't know you imported | not started |
-| 6 (capstone) | — | I built the tool: AI-assisted dependency vetting | not started |
-
-**The capstone post and talk ending are the same deliverable.** Post 6 introduces the tool; the talk closes with "you now know how to read the receipt manually — here's the tool that does it for you." The tool needs to be finished, live, and linked before talk day.
+Posts 2–5 can be rough drafts — they're the paper trail, not the headline. Post 6 must be polished and live before talk day.
 
 ---
 
-## How to use this plan
+## Week-by-week plan (6 weeks)
 
-- One "phase" ≈ one to two weeks. Don't be a hero — short, regular sessions beat a marathon.
-- Every phase has **(a) read/watch**, **(b) do**, **(c) self-check** prompts.
-- If a self-check feels easy, skip ahead.
-- Keep a `notes.md` file as you go — quotes, surprises, "wait, why?" moments. Those become slide content.
+### Phase 2 (June 28 – July 4): Phase 2 — Toolchain mental model
 
----
+**Goal:** Know what `go build` is *actually* doing. Be able to draw compile → link on a whiteboard.
 
-## Phase 0 — Frame the topic for yourself (now, ~2 days)
+**Read / watch**
+- `go help build` and `go help buildmode` — yes, the help text. Surprisingly readable.
+- Search YouTube for: "GopherCon Go compiler" or "GopherCon Go linker". Pick one ~25–40 min talk, most recent you can find.
+- Dave Cheney's blog (`dave.cheney.net`) — search for "linker", "binary size", "init". Short, opinionated, ages well.
+- `src/cmd/link/` in the Go source — read `doc.go` and any top-level comments. You want to see how the Go team frames its own component.
 
-Before reading anything new, write one page in your own voice answering:
+**Do**
+1. `go build -x -o /tmp/hello ./hello.go` on a tiny program. Read the `-x` output. Identify each phase.
+2. `go build -work .` and inspect the temp work directory.
+3. `go tool compile -h` and `go tool link -h` — read the flag lists.
+4. Inspect object files and the linker's resolution process: `cd` into a small project and run `WORK=$(go build -a -work -o /tmp/out . 2>&1 | grep WORK | awk -F= '{print $2}') && find $WORK -name "*.a"`. Pick `b001/_pkg_.a` (your package) and run `go tool nm $WORK/b001/_pkg_.a` to see the symbol table. Read the `importcfg` file in the same folder. Trace how `U` entries in the symbol table map to packages listed in `importcfg`. Compare the object file symbols to the final binary: `go tool nm /tmp/out | grep "main\."` — notice all `U` entries are gone.
 
-1. What does "dependency management" actually *do*, in your current mental model?
-2. What's the difference between `go.mod`, `go.sum`, the module cache, and the build cache? (Even if you're guessing.)
-3. What does a Go binary contain? Walk through it the way you'd walk a junior engineer through it.
-4. When the linker runs, what does it have as input, and what does it produce?
-
-You'll come back to this in Phase 5 and laugh at parts of it. That's the point — you're capturing your starting point so you can teach it.
-
----
-
-## Phase 1 — Module fundamentals (~1 week)
-
-**Goal:** Stop treating `go.mod` as magic.
-
-### Read / watch
-
-✓ **Go Modules Reference** (official) — `go.dev/ref/mod`. Skim, don't memorize. Know which sections exist so you can come back.
-✓ **The Go Blog — "Using Go Modules" series.** 
-- **Russ Cox — "Our Software Dependency Problem"** (2019, on `research.swtch.com`). Not Go-specific, but Russ wrote modules and this is *the* essay that frames the philosophy. Highest leverage single read on this list.
-- **Sam Boyer — the history of Go dependency management.** Why did Go ship with GOPATH instead of a module system? Boyer drove the `dep` tool and the design work that eventually became Go modules. Understanding the *why* behind the evolution (GOPATH → dep → Go modules) gives you a story arc for the talk and the security post. Search for his GopherCon talks and his "The Cargo Cult of Versioning" writing.
-- **npm left-pad incident** (2016) — a 17-line package being unpublished broke thousands of builds worldwide. Good concrete anchor for "why dependency hygiene matters" before you get to the Go-specific machinery.
-- **xz-utils backdoor** (2024) — a multi-year supply chain attack. A malicious actor built trust over two years as a maintainer before inserting a payload. This is the "attack surface" post's anchor story.
-- Understanding how other tools handle package management (other package managers, like ruby gems)
-
-### Do
-
-- In a scratch repo: `go mod init`, `go get` something, then read the resulting `go.mod` and `go.sum` line by line. Look up every directive (`require`, `replace`, `exclude`, `retract`, `toolchain`).
-- Run `go env GOMODCACHE` — go to that directory, browse it. Internalize that the module cache is just files on disk.
-- `go mod download -x github.com/something/something` and watch what it fetches.
-
-### Self-check
-
-- Explain `go.sum` to a friend in two sentences without using the word "hash."
-- What's MVS (Minimum Version Selection)? Why does Go use it instead of "latest wins"?
-- What does `go mod tidy` actually change?
+**Self-check**
+1. In your own words, what's the difference between `cmd/compile` and `cmd/link`?
+2. What's an object file (`.a` archive)? What's inside one?
+3. Where do `gopclntab`, `runtime`, and `reflect` come from in every binary?
 
 ---
 
-## Phase 2 — The toolchain mental model (~1.5 weeks)
+### Phase 3 (July 5 – July 18): Phase 3 — The linker & DCE
 
-**Goal:** Know what `go build` is *actually* doing under the hood.
+**Goal:** Be able to draw the mark-and-sweep on a whiteboard from memory. This is the technical heart of the talk.
 
-### Read / watch
-
-- **`go help build` and `go help buildmode`** — yes, the help text. Surprisingly readable.
-- **Search YouTube for: "GopherCon Go compiler" and "GopherCon Go linker".** There are several talks, including one by Austin Clements / Than McIntosh / Cherry Mui at various GopherCons walking through the compiler+linker pipeline. Pick whichever is most recent and ~25–40 min.
-- **Dave Cheney's blog (`dave.cheney.net`)** — search his archive for "linker", "binary size", "init". He has accessible, short pieces from over the years. Not all are current, but the conceptual parts age well.
-- **The Go source tree** — open `src/cmd/link/` and just read the top-level `doc.go` if it exists, plus `README.md`. You don't need to understand the code; you want to see how the Go team frames its own component.
-
-### Do
-
-- `go build -x -o /tmp/hello ./hello.go` on a tiny program. Read the `-x` output. Identify each phase (compile → link).
-- `go build -work .` and inspect the temp work directory before it's deleted.
-- `go tool compile -h` and `go tool link -h` — read the flag lists.
-
-### Self-check
-
-- In your own words, what's the difference between `cmd/compile` and `cmd/link`?
-- What's an object file (`.a` archive)? What's inside?
-- Where do `gopclntab`, `runtime`, and `reflect` come from in every binary?
-
----
-
-## Phase 3 — The linker & Dead Code Elimination (~2 weeks — heart of the talk)
-
-**Goal:** Be able to draw the mark-and-sweep on a whiteboard from memory.
-
-### Reach out (in parallel — time-sensitive)
-
-- Pierre is giving a talk at **GopherCon EU** on this exact topic — reach out now to sync. His GopherCon EU date sets the deadline; you want enough phase-2/3 vocabulary to ask good questions, but don't wait until you "feel ready."
-
-### Read / watch
-
-- **[Reducing the size of the Datadog Agent's Go binaries](https://www.datadoghq.com/blog/engineering/agent-go-binaries/)** — directly on-topic case study, internal authors you can reach.
-- **Search for: "Go linker dead code elimination" blog posts.** There are several from individual engineers (often from Cloudflare, Tailscale, Uber, Datadog) walking through real shrinking exercises. These are gold because they show *measured* before/after.
-- **GopherCon talks on binary size.** Search YouTube for "Go binary size" or "shrinking Go binaries". A handful of talks exist; even older ones (2018–2022) cover concepts that are still current.
+**Read / watch**
+- **[Reducing the size of the Datadog Agent's Go binaries](https://www.datadoghq.com/blog/engineering/agent-go-binaries/)** — on-topic case study, internal authors you can reach.
+- Search for: "Go linker dead code elimination" blog posts — Cloudflare, Tailscale, Uber, Datadog authors. These show *measured* before/after.
+- GopherCon YouTube — "Go binary size" or "shrinking Go binaries". Even 2018–2022 talks cover concepts that are still current.
 - **`src/cmd/link/internal/ld/deadcode.go`** in the Go source. Read the comments, not the code. The comments explain the algorithm in plain English better than any blog post.
-- **TinyGo's documentation** — even though TinyGo is a different compiler, their docs on "why is my binary small?" indirectly illuminate what mainline Go's linker doesn't do.
+- Pierre is giving a GopherCon EU talk on this topic — reach out if you haven't yet. You have enough vocabulary now to ask good questions.
 
-### Do
-
-- Build the same `main.go` against two different libraries (one lean, one with a heavy `init`). Compare:
-  - `ls -l` of the binary
-  - `go tool nm -size -sort size <binary> | tail -50`
+**Do**
+- Build the same `main.go` against two libraries (one lean, one with a heavy `init()`). Compare:
+  - `ls -l` binary size
+  - `go tool nm -size -sort size <binary> | head -50`
   - `go version -m <binary>`
 - Try `go build -ldflags="-s -w"` and measure the difference. Form an opinion on whether stripping is "free."
-- Force a leak: write a tiny package whose `init()` references a heavy function. Confirm the heavy function survives DCE.
+- Force a leak: write a tiny package whose `init()` references a heavy function. Confirm it survives DCE.
 
-### Self-check
-
+**Self-check**
 - Why is `init()` always reachable?
 - Why does reflection defeat DCE?
 - What does the linker do with an interface method set?
@@ -137,107 +95,114 @@ You'll come back to this in Phase 5 and laugh at parts of it. That's the point �
 
 ---
 
-## Phase 4 — Hands-on lab (~2 weeks)
+### Phase 4 (July 12 – July 25): Phase 4 — Hands-on lab, demo, & Datadog audit
 
-This is where the demo for your talk is born. Treat it like a research notebook.
+These two things happen in parallel. The Datadog audit *is* the real-binary work from Phase 4.
 
-### Build the demo binary
+#### Demo (talk)
 
-- Pick **one** real, lean utility module and **one** real, init-heavy module that solve roughly the same problem. (Examples to consider: a tiny logger vs. a feature-rich logger; a minimal HTTP client wrapper vs. a heavy SDK.)
-- Write a `main.go` that exercises one trivial function from each.
-- Build both. Capture binary size, symbol count, top-20 heaviest symbols.
-- Capture **the same numbers** at: pristine, with `-trimpath`, with `-ldflags="-s -w"`, with `-buildmode=pie`. Note which flags do anything.
+- Pick one lean utility module and one init-heavy module that solve roughly the same problem. Build a `main.go` that uses each. Capture:
+  - binary size at: pristine, `-trimpath`, `-ldflags="-s -w"`, `-buildmode=pie`
+  - symbol count, top-20 heaviest symbols
+- **You must be able to run this demo live if your slides crash.** Practice until smooth.
 
-### Build the audit story
+#### Datadog audit (Q&A prep)
 
-- Pick a binary you actually use at work (with permission!) and run the same audit on it. Find one surprising symbol. `go mod why` it. Write down the story.
-- That story is a slide.
+You are a dd-trace-go maintainer. Audience members will ask: *"I use Datadog tracing and you bloat my binary."* You need to be able to answer that with data, honesty, and a bit of humor. Here's the prep:
 
-### Self-check
+**Run the numbers on dd-trace-go**
+- In your local checkout, build a minimal `main.go` that just imports `gopkg.in/DataDog/dd-trace-go.v2` and starts a tracer. Run:
+  - `go mod graph | wc -l` — how many dependency edges?
+  - `go tool nm -size -sort size <binary> | head -50` — what are the heaviest symbols?
+  - `go version -m <binary>` — which modules made the cut?
+- Find the top 3 surprising things in that output.
 
-- Could you do this audit live, on stage, if your demo crashed? (If no — practice until yes.)
+**Understand what we currently do**
+- Check the `dependabot.yml` (or `.github/dependabot.yml`) in dd-trace-go. Know what it covers.
+- Run `govulncheck ./...` on the repo. Know whether it's in CI.
+- Look at `init()` functions across the main library packages: `grep -rn "^func init()" --include="*.go" .` — how many are there, and what do the heavy ones do?
+- Look at package-level globals: `grep -rn "^var " --include="*.go" . | wc -l` — know the rough shape.
 
----
+**Prepare your honest answer**
+Write 3–5 bullet points you could say on stage:
+1. What dd-trace-go adds to a binary, and *why* (what functionality justifies it)
+2. What we currently do for dependency hygiene (dependabot, govulncheck, etc.)
+3. One honest gap — something we don't do yet but should
+4. A humble acknowledgment that as a library maintainer, you now think about this differently
 
-## Phase 5 — Real-world stories & polish (~2 weeks)
-
-**Goal:** You stop sounding like a textbook and start sounding like someone who's been in the trenches.
-
-### Read
-
-- Engineering blogs from companies that ship Go binaries at scale. Search for:
-  - "Tailscale" + "binary size" or "Go"
-  - "Cloudflare" + "Go" + "binary"
-  - "Datadog" + "Go" + binary/size (you have insider access — talk to colleagues!)
-  - "Discord" + "Go"
-  - "Uber" + "Go"
-- Note: companies often write *one* really good post on this topic and then move on. Look for posts from 2020–2025 with measured numbers.
-- **Filippo Valsorda on dependabot and dependency maintenance** — Filippo is a Go security maintainer at Google who has written about the practice of keeping dependencies up to date as a security discipline, not just a chore. His perspective is a good counter-weight to pure binary-bloat framing: *why* you want fresh deps (security patches) vs. *why* you want fewer deps (smaller attack surface). That tension is the "attack surface" post.
-- **Mitchell Hashimoto on dependencies** — he has a notable post/thread on minimizing dependency graphs in mature projects. Good practitioner voice to cite alongside Cox.
-
-### Talk to humans
-
-- Find one library maintainer outside Datadog (Slack, Gophers Slack, Twitter/Bluesky) who has thought about this. Ask: *"What's the most surprising bloat source you've found?"* Their answer is your best slide.
-- At Datadog: ask the dd-trace-go team and any folks who've worked on `go-libddwaf` or shipped to customer binaries. They've felt this pain.
-
-### Self-check
-
-- Re-read your Phase 0 page. What's wrong? What's right? Update.
-- Can you give the talk in 5 minutes? In 25? In 60? Each forces different prioritization.
+The goal is not defensiveness — it's the talk's thesis in miniature: *you understand the receipt now, here's ours.*
 
 ---
 
-## Resource shortlist (confident, accessible)
+### Phase 5 (July 26 – August 1): Capstone tool + blog posts
 
-These are things I'm reasonably sure exist and are accessible. I've left URLs off intentionally — search by title and you'll find them.
+**Capstone tool** (must be live before talk day)
 
-| Resource | Format | Why |
-|---|---|---|
-| "Our Software Dependency Problem" — Russ Cox | Essay | Frames the *why* of the whole talk |
-| Go Modules Reference — official | Docs | The canonical answer to "is this true?" |
-| "Using Go Modules" / "Migrating to Go Modules" / "Publishing Go Modules" — Go Blog | Blog | Foundational, easy reading |
-| Dave Cheney's blog — search "linker" / "init" / "binary" | Blog | Short, opinionated, accessible |
-| `src/cmd/link/internal/ld/deadcode.go` — Go source | Source w/ comments | Authoritative on DCE |
-| TinyGo docs — "Why is my binary small?" | Docs | Contrast helps |
-| GopherCon YouTube — "linker" / "binary size" / "compiler" | Video | Pick one ~30 min talk |
-| `go help mod` and `go help build` | CLI | Underrated, written by the people who built it |
+The tool automates Cox's dependency evaluation checklist:
+- maintenance posture (last commit, open issues, bus factor)
+- vulnerability history (govulncheck or the vuln DB)
+- transitive dependency count
+- license
+- security patch recency
 
-**Resources I've heard of but can't vouch for off the top of my head** (verify before citing on stage):
-- Specific posts from Filippo Valsorda on Go security/deps
-- Specific posts from Jaana Dogan (rakyll) on Go performance
-- Specific GopherCon talks by Austin Clements / Than McIntosh / Cherry Mui
+Build it during this week. The talk's closing slide references it — "here's the tool that does everything we just covered, in one command." It needs to be deployed (even a simple `go install` or a hosted URL) and linked from the capstone blog post.
 
-If you want, hand me back any of these later and I'll help you confirm they exist and summarize them.
+**Blog posts**
+- Rough-draft posts 2 and 3 from your Phase 2 and 3 notes. They don't have to be polished — they're the paper trail.
+- Rough-draft posts 4 and 5 from your demo/audit work.
+- Write and polish **post 6 (capstone)** — this is the one that must be live.
 
 ---
 
-## Capstone: AI-assisted dependency vetting tool
+### Week 6 (August 2–7): Final polish & readiness
 
-*Idea flagged by mentor as potentially high-traffic. This is the talk's closing deliverable.*
+**Talk polish**
+- Replace all "illustrative numbers" in the outline with your real measured numbers.
+- Fill the open question in Part 4 (the decision framework for audit output — *when* do you say "don't import this"?).
+- Rehearse the demo until you can do it without looking at your hands.
 
-**What it is:** A tool that automates Cox's "evaluate a dependency like a new hire" checklist — maintenance posture, vulnerability history, transitive dep count, license, last security patch. Readers/audience leave with something they can run before every `go get`.
-
-**Narrative role:** The entire blog series and talk teach you *how* to evaluate a dependency manually (modules → toolchain → linker → DCE → audit commands). The tool is the synthesis: "you now understand what I built, and you can use it." It closes the loop between the technical education and a practical daily-use artifact.
-
-**Talk ending:** After covering `go tool nm` + `go mod why` as the manual audit toolkit, the final slide references the tool. "We went over everything you need to decide whether to use a dependency. Now you can get the benefit of all that from this tool."
-
-**Timeline constraint:** Tool must be finished and the capstone post must be live before talk day (~2026-08-07). Build it during Phase 4–5 prep, in parallel with the hands-on lab work — the implementation will reinforce what you're learning.
-
----
-
-## Readiness check (do this 2 weeks before the talk)
-
-You're ready when you can, **without notes**:
-
+**Readiness check — you're ready when you can, without notes:**
 1. Define MVS in one sentence.
 2. Draw the compile→link pipeline on a whiteboard.
 3. Explain why DCE is a *graph reachability* problem.
 4. Name the three leak patterns and give a one-line example of each.
-5. Run `go tool nm -size -sort size` on a binary and read the top of the output out loud, identifying which symbols are "expected" and which are "suspicious."
+5. Run `go tool nm -size -sort size` on a binary and read the top of the output out loud, identifying "expected" vs "suspicious" symbols.
 6. Run `go mod why -m <pkg>` and explain the path to a non-Go engineer.
-7. Tell **one story** of a real surprising bloat source you (or someone) found.
+7. Tell one story of a surprising bloat source you found — ideally from the Datadog audit.
+8. Answer *"I use Datadog and you bloat my binary"* with data, honesty, and a smile.
 
-If any of those aren't smooth, you know exactly which phase to revisit.
+If any of these aren't smooth, you know which week to revisit.
+
+---
+
+## Resource shortlist
+
+| Resource | Format | Why |
+|---|---|---|
+| "Our Software Dependency Problem" — Russ Cox | Essay | Frames the *why* of the whole talk |
+| Go Modules Reference — official | Docs | Canonical answer to "is this true?" |
+| Dave Cheney's blog — "linker" / "init" / "binary" | Blog | Short, opinionated, accessible |
+| `src/cmd/link/internal/ld/deadcode.go` | Source w/ comments | Authoritative on DCE algorithm |
+| Datadog Agent Go binaries post | Blog | On-topic case study, internal authors |
+| GopherCon YouTube — "binary size" / "shrinking Go binaries" | Video | Pick one ~30 min talk |
+| `go help mod` and `go help build` | CLI | Written by the people who built it |
+
+**Verify before citing on stage:**
+- Specific posts from Filippo Valsorda on Go security/deps
+- Specific posts from Jaana Dogan (rakyll) on Go performance
+- Specific GopherCon talks by Austin Clements / Than McIntosh / Cherry Mui
+
+---
+
+## Capstone tool
+
+**What it is:** A tool that automates Cox's "evaluate a dependency like a new hire" checklist — maintenance posture, vulnerability history, transitive dep count, license, last security patch.
+
+**Narrative role:** The blog series teaches you *how* to evaluate a dependency manually. The tool is the synthesis: "you understand what I built, and you can use it."
+
+**Talk ending:** After covering `go tool nm` + `go mod why` as the manual audit toolkit, the final slide references the tool. "We went over everything you need to decide whether to use a dependency. Now you can get the benefit of all that from this tool."
+
+**Hard deadline:** Tool finished and capstone post live before 2026-08-07.
 
 ---
 
