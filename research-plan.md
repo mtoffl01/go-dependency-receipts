@@ -216,6 +216,9 @@ If any of these aren't smooth, you know which week to revisit.
 | GopherCon YouTube — "binary size" / "shrinking Go binaries" | Video | Pick one ~30 min talk |
 | `go help mod` and `go help build` | CLI | Written by the people who built it |
 
+**Talk delivery — mentor recommendation:**
+- **Bill Kennedy** (`@goinggodotnet` on X, Ardan Labs) — recommended by your mentor as a model for how to give an engaging, memorable Go talk. He runs the "Ultimate Go" training and is known for making low-level Go concepts land for a broad audience. Watch a few of his GopherCon talks specifically for *structure and delivery*, not just content: how he builds up mental models, when he slows down vs. speeds up, how he uses live code. This is about learning to teach, not just learning the material.
+
 **Verify before citing on stage:**
 - Specific posts from Filippo Valsorda on Go security/deps
 - Specific posts from Jaana Dogan (rakyll) on Go performance
