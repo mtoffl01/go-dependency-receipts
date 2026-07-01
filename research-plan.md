@@ -37,7 +37,7 @@ This plan is paced for **accessible, intuition-first** learning — blog posts, 
 | 3 | The linker, dead code elimination, and why `init()` is a landmine | not started |
 | 4 | Auditing a real binary: receipts | not started |
 | 5 | The attack surface you didn't know you imported: CVEs, reachability, and what `govulncheck` actually tells you | not started |
-| 6 (capstone) | I built the tool: AI-assisted dependency vetting | not started |
+| 6 (capstone) | I built a Claude Code skill: your binary's gotcha checklist in one command | not started |
 
 Posts 2–5 can be rough drafts — they're the paper trail, not the headline. Post 6 must be polished and live before talk day.
 
@@ -165,16 +165,14 @@ The goal is not defensiveness — it's the talk's thesis in miniature: *you unde
 
 ### Phase 5 (July 26 – August 1): Capstone tool + blog posts
 
-**Capstone tool** (must be live before talk day)
+**Capstone skill** (must be working before talk day)
 
-The tool automates Cox's dependency evaluation checklist:
-- maintenance posture (last commit, open issues, bus factor)
-- vulnerability history (govulncheck or the vuln DB)
-- transitive dependency count
-- license
-- security patch recency
+Build a Claude Code agent skill that encodes the talk's runbook. It should be installable in one step and runnable against any binary or module path. Layered output:
+- stdlib commands first (`go tool nm`, `govulncheck`, `go mod why`)
+- ecosystem tools second (`whydeadcode`, `goda`, `go-size-analyzer`) with install hints if not present
+- synthesized gotcha report: `init()` roots, reflect degradation, plugin presence, large interface clients, reachable CVEs
 
-Build it during this week. The talk's closing slide references it — "here's the tool that does everything we just covered, in one command." It needs to be deployed (even a simple `go install` or a hosted URL) and linked from the capstone blog post.
+No deployment infrastructure needed — Claude Code skills are just markdown files the user drops into their `.claude/` directory. That's the whole install story.
 
 **Blog posts**
 - Rough-draft posts 2 and 3 from your Phase 2 and 3 notes. They don't have to be polished — they're the paper trail.
@@ -228,15 +226,19 @@ If any of these aren't smooth, you know which week to revisit.
 
 ---
 
-## Capstone tool
+## Capstone: Claude Code agent skill
 
-**What it is:** A tool that automates Cox's "evaluate a dependency like a new hire" checklist — maintenance posture, vulnerability history, transitive dep count, license, last security patch.
+**What it is (revised with mentor):** Not a standalone tool — a Claude Code agent skill that encodes the talk's runbook. Given a binary or module, it walks through the "gotcha" checks from the talk in layers:
 
-**Narrative role:** The blog series teaches you *how* to evaluate a dependency manually. The tool is the synthesis: "you understand what I built, and you can use it."
+1. **Standard library tier** — things any Go developer already has: `go tool nm`, `go mod why`, `go mod graph`, `go version -m`, `govulncheck`
+2. **Ecosystem tool tier** — tools worth knowing: `whydeadcode` (traces DCE degradation from reflect), `goda` (dependency graph visualization), `go-size-analyzer` (heaviest packages)
+3. **Gotcha check tier** — the skill's value-add: synthesizes the output of the above into the specific patterns from the talk: `init()` roots, reflect degradation, plugin presence, large interface clients (the Prometheus adapter problem), suspicious transitive deps, CVEs with reachability context
 
-**Talk ending:** After covering `go tool nm` + `go mod why` as the manual audit toolkit, the final slide references the tool. "We went over everything you need to decide whether to use a dependency. Now you can get the benefit of all that from this tool."
+**Narrative role:** The talk teaches the audience *why* each of these checks matters — the machinery behind it. The skill is the synthesis: "you now understand what this is doing, and you can run it on any binary in one command." The audience leaves with something immediately usable.
 
-**Hard deadline:** Tool finished and capstone post live before 2026-08-07.
+**Talk ending:** "Everything I just showed you — the linker's reachability graph, the three DCE degradation patterns, the difference between a module-level CVE and a reachable one — this skill knows all of it. Here's how to install it."
+
+**Hard deadline:** Skill working and capstone post live before 2026-08-07.
 
 ---
 
